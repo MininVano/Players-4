@@ -1,0 +1,58 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        gradle-version: '8.9'
+
+    - name: Accept Android Licenses
+      run: yes | sdkmanager --licenses 2>/dev/null || true
+
+    - name: Prepare Project Structure
+      run: |
+        # 1. Если загружен .zip архив, распаковываем его
+        for f in *.zip; do
+          if [ -f "$f" ]; then
+            echo "Unzipping $f..."
+            unzip -o "$f" || true
+          fi
+        done
+        # 2. Если файлы внутри вложенной папки NeonPlayer-Android, переносим в корень
+        if [ -d "NeonPlayer-Android" ]; then
+          echo "Moving nested project to root..."
+          cp -r NeonPlayer-Android/* . || true
+        fi
+        echo "=== Workspace contents ==="
+        ls -la
+
+    - name: Build APK with Gradle
+      run: gradle assembleDebug --stacktrace --no-daemon
+
+    - name: Upload Debug APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: NeonPlayer-APK
+        path: |
+          app/build/outputs/apk/debug/*.apk
+          **/build/outputs/apk/debug/*.apk
